@@ -1,0 +1,115 @@
+
+# Seed needs to be set at top of yaml, before objects with parameters are made
+seed: 7230
+__set_seed: !!python/object/apply:torch.manual_seed [!ref <seed>]
+
+#NOTE: change this to the  desired data folder
+data_folder: /mnt/parscratch/users/acp20glc/CHiME2023
+train: ["libri1to3mix"]
+val: ["libri1to3mix", "libri1to3chime"]
+test: ["libri1to3mix"]
+
+#NOTE: change this to the  desired output folder
+output_folder: !ref /mnt/parscratch/users/acp20glc/MetricGANMulti2/CMGAN/<target_metric>-<degen_mode>-w<degraded_target>-chime-teacher-<seed>/
+MetricGAN_folder: !ref <output_folder>/enhanced_wavs
+
+save_folder: !ref <output_folder>/save
+train_log: !ref <output_folder>/train_log.txt
+enhanced_folder: !ref <output_folder>/enhanced_wavs
+historical_file: !ref <output_folder>/historical.txt
+
+# Basic parameters
+use_tensorboard: true
+tensorboard_logs: !ref <output_folder>logs/
+
+# FFT parameters
+Sample_rate: 16000
+Win_length: 25
+Hop_length: 6.2
+N_fft: 400
+window_fn: !name:torch.hamming_window
+onesided: True
+
+skip_prep: false
+
+# The target metrics that you want to optimize.
+target_metric: dnsmos_all
+# Training Parameters
+number_of_epochs: 200
+number_of_epochs_stage2: 200
+number_of_samples: 250
+min_mask: 0.05
+train_N_batch: 2
+valid_N_batch: 8
+history_portion: 0.2
+G_lr: 0.005
+Gd_lr: 0.005
+D_lr: 0.001 
+
+# degenerator parameters
+degraded_target: 1.0
+degen_mode: NOISY
+
+
+
+
+dataloader_options:
+  batch_size: !ref <train_N_batch>
+valid_dataloader_options:
+  batch_size: !ref <valid_N_batch>
+
+# Change this import to use a different model
+models: !include:../models/CMGANmulti.yaml
+
+modules:
+    generator: !ref <models[generator]>
+    degenerator: !ref <models[degenerator]>
+    discriminator: !ref <models[discriminator]>
+
+epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
+  limit: !ref <number_of_epochs>
+
+epoch_counter_stage2: !new:speechbrain.utils.epoch_loop.EpochCounter
+  limit: !ref <number_of_epochs_stage2>
+
+g_opt_class: !name:torch.optim.Adam
+  lr: !ref <G_lr>
+gd_opt_class: !name:torch.optim.Adam
+  lr: !ref <Gd_lr>
+d_opt_class: !name:torch.optim.Adam
+  lr: !ref <D_lr>
+
+checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
+  checkpoints_dir: !ref <save_folder>
+  recoverables:
+    model: !ref <models[generator]>
+    counter: !ref <epoch_counter>
+    counter2: !ref <epoch_counter_stage2>
+    discrim: !ref <models[degenerator]>
+    degen: !ref <models[discriminator]>
+
+compute_cost: !name:speechbrain.nnet.losses.mse_loss
+
+compute_STFT: !new:speechbrain.processing.features.STFT
+    sample_rate: !ref <Sample_rate>
+    win_length: !ref <Win_length>
+    hop_length: !ref <Hop_length>
+    n_fft: !ref <N_fft>
+    window_fn: !ref <window_fn>
+    onesided: !ref <onesided>
+compute_ISTFT: !new:speechbrain.processing.features.ISTFT
+    sample_rate: !ref <Sample_rate>
+    win_length: !ref <Win_length>
+    hop_length: !ref <Hop_length>
+    window_fn: !ref <window_fn>
+
+resynth: !name:speechbrain.processing.signal_processing.resynthesize
+    stft: !ref <compute_STFT>
+    istft: !ref <compute_ISTFT>
+
+train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
+  save_file: !ref <output_folder>train_log.txt
+
+# Tensorboard logger (optional)
+tensorboard_train_logger: !new:speechbrain.utils.train_logger.TensorboardLogger
+  save_dir: !ref <output_folder>logs/

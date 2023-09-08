@@ -1,0 +1,10 @@
+
+
+
+generator: !new:models.CMGAN.generator.TSCNet
+ 
+degenerator: !new:models.degen.EnhancementGenerator
+  input_size: 201
+discriminator: !new:models.ni_predictors.HuBERTMetricPredictorFullLayersMulti
+#discriminator: !new:models.ni_predictors.SpecMetricPredictor
+
